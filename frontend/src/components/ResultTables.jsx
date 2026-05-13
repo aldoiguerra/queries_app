@@ -1,4 +1,55 @@
 import { useState } from 'react'
+import * as XLSX from 'xlsx'
+
+// ── Export helpers ──────────────────────────────────────────────────────────
+
+function rawValue(v) {
+  return v === null || v === undefined ? '' : v
+}
+
+function cellToCSV(v) {
+  if (v === null || v === undefined) return ''
+  const s = String(v)
+  return s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s
+}
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+function exportCSV(resultSets) {
+  resultSets.forEach((item, idx) => {
+    const { fields, records } = item.result
+    const header = fields.map(f => cellToCSV(f.name)).join(',')
+    const rows = records.map(row => row.map(cellToCSV).join(','))
+    const csv = '﻿' + [header, ...rows].join('\r\n')
+    const suffix = resultSets.length > 1 ? `_${idx + 1}` : ''
+    downloadBlob(csv, `resultado${suffix}.csv`, 'text/csv;charset=utf-8')
+  })
+}
+
+function exportExcel(resultSets) {
+  const wb = XLSX.utils.book_new()
+  resultSets.forEach((item, idx) => {
+    const { fields, records } = item.result
+    const data = [fields.map(f => f.name), ...records.map(row => row.map(rawValue))]
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    XLSX.utils.book_append_sheet(wb, ws, `Resultado ${idx + 1}`)
+  })
+  XLSX.writeFile(wb, 'resultado.xlsx')
+}
+
+// ── Render helpers ──────────────────────────────────────────────────────────
 
 function formatValue(value) {
   if (value === null || value === undefined) return <span className="cell-null">NULL</span>
@@ -129,6 +180,7 @@ export function ResultTables({ result, loading, error }) {
   }
 
   const { tempo_execucao, tempo_total, status, erro, results = [] } = result
+  const exportable = results.filter(r => r.isResultSet)
 
   return (
     <div className="results-wrapper">
@@ -141,9 +193,38 @@ export function ResultTables({ result, loading, error }) {
             {results.length} {results.length === 1 ? 'resultado' : 'resultados'}
           </span>
         )}
-        <span className={`results-status-badge ${status ? 'badge-ok' : 'badge-err'}`}>
-          {status ? '✓ OK' : '✗ Erro'}
-        </span>
+
+        <div className="export-actions">
+          {exportable.length > 0 && (
+            <>
+              <button
+                className="btn btn-export"
+                onClick={() => exportCSV(exportable)}
+                title="Exportar como CSV"
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                  <path d="M1 4.5h11M1 7.5h11M4.5 4.5v7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+                </svg>
+                CSV
+              </button>
+              <button
+                className="btn btn-export btn-export-excel"
+                onClick={() => exportExcel(exportable)}
+                title="Exportar como Excel"
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                  <path d="M4 4l2 2.5L4 9M7 4l2 2.5L7 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Excel
+              </button>
+            </>
+          )}
+          <span className={`results-status-badge ${status ? 'badge-ok' : 'badge-err'}`}>
+            {status ? '✓ OK' : '✗ Erro'}
+          </span>
+        </div>
       </div>
 
       {/* ── Erro global ── */}
