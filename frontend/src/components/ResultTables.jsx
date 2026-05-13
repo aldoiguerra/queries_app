@@ -121,6 +121,7 @@ function ResultBlock({ item, index }) {
     <div className="result-block">
       <div className="result-block-header">
         <span className="result-block-index">#{index + 1}</span>
+        <TimeChip label="execução" value={item.tempo_execucao} />
         <TimeChip label="fetch" value={item.tempo_fetch} />
         <TimeChip label="json" value={item.tempo_json} />
         <span className="result-block-rows">
@@ -179,14 +180,13 @@ export function ResultTables({ result, loading, error }) {
     )
   }
 
-  const { tempo_execucao, tempo_total, status, erro, results = [] } = result
+  const { tempo_total, status, erro, results = [] } = result
   const exportable = results.filter(r => r.isResultSet)
 
   return (
     <div className="results-wrapper">
       {/* ── Cabeçalho global ── */}
       <div className="results-summary">
-        <TimeChip label="execução" value={tempo_execucao} />
         <TimeChip label="total" value={tempo_total} />
         {status && (
           <span className="results-count">

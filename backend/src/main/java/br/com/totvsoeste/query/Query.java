@@ -76,7 +76,7 @@ public class Query {
 
                         double tempo_execute = ((new Date().getTime() - inicio) / 1000.0);
                         infos.put("t1.tempo_execute", tempo_execute);
-                        logi.logInfoC("consultar() => tempo execute: " + tempo_execute + " seg");
+                        logi.logInfoS("consultar() => tempo execute: " + tempo_execute + " seg");
                         inicio = new Date().getTime();
 
                         if ("dataset".equals(tipoConsulta)) {
@@ -108,7 +108,7 @@ public class Query {
                             infos.put("t3.tempo_values", tempo_values);
                             logi.logInfoS("consultar() => tempo values: " + tempo_values + " seg");
 
-                            logi.logInfoC("consultar() => colNames.size(): " + colNames.size());
+                            logi.logInfoS("consultar() => colNames.size(): " + colNames.size());
                             logi.logInfoS("consultar() => listaDados.size(): " + listaDados.size());
 
                             retorno.put("columns", new JSONArray(colNames));
@@ -124,7 +124,7 @@ public class Query {
 
                             retorno = new JSONObject(jsonQuery);
 
-                            logi.logInfoC("consultar() => fields.length(): " + retorno.getJSONArray("fields").length());
+                            logi.logInfoS("consultar() => fields.length(): " + retorno.getJSONArray("fields").length());
                             logi.logInfoS("consultar() => records.length(): " + retorno.getJSONArray("records").length());
 
                         }
@@ -132,7 +132,7 @@ public class Query {
 
                     double tempo_total = ((new Date().getTime() - inicioT) / 1000.0);
                     infos.put("t4.tempo_total", tempo_total);
-                    logi.logInfoC("consultar() => tempo total: " + tempo_total + " seg");
+                    logi.logInfoS("consultar() => tempo total: " + tempo_total + " seg");
 
                     retorno.put("infos", infos);
 
@@ -172,8 +172,12 @@ public class Query {
                     String myQuery = dados.getConsulta();
 
                     for (String sql : splitSqlStatements(myQuery)) {
+
+                        logi.logInfoC("sql => " + sql);
+
                         if (sql.isBlank()) continue;
 
+                        JSONObject execucao = new JSONObject();
                         try (Statement stmt = conn.createStatement()) {
 
                             inicio = new Date().getTime();
@@ -181,63 +185,53 @@ public class Query {
                             boolean isResultSet = stmt.execute(sql);
 
                             double tempo_execucao = ((new Date().getTime() - inicio) / 1000.0);
-                            retorno.put("tempo_execucao", tempo_execucao);
+                            execucao.put("tempo_execucao", tempo_execucao);
                             logi.logInfoS("executar() => tempo_execucao: " + tempo_execucao);
 
-                            boolean hasMoreResult = true;
+                            logi.logInfoC("");
 
-                            while (hasMoreResult) {
-                                logi.logInfoC("");
+                            execucao.put("isResultSet", isResultSet);
+                            logi.logInfoS("executar() => isResultSet: " + isResultSet);
 
-                                JSONObject execucao = new JSONObject();
-                                execucao.put("isResultSet", isResultSet);
-                                logi.logInfoS("executar() => isResultSet: " + isResultSet);
+                            int rowCount = 0;
+                            inicio = new Date().getTime();
+                            if (isResultSet) {
+                                try (ResultSet rs = stmt.getResultSet()) {
 
-                                int rowCount = 0;
-                                inicio = new Date().getTime();
-                                if (isResultSet) {
-                                    try (ResultSet rs = stmt.getResultSet()) {
-
-                                        String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
-
-                                        double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
-                                        execucao.put("tempo_fetch", tempo_fetch);
-                                        logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
-                                        inicio = new Date().getTime();
-
-                                        JSONObject result = new JSONObject(jsonQuery);
-                                        execucao.put("result", result);
-
-                                        double tempo_json = ((new Date().getTime() - inicio) / 1000.0);
-                                        execucao.put("tempo_json", tempo_json);
-                                        logi.logInfoS("executar() => tempo_json: " + tempo_json);
-
-                                        rowCount = result.getJSONArray("records").length();
-                                        execucao.put("rows_count", rowCount);
-                                        logi.logInfoS("executar() => rowCount: " + rowCount);
-
-                                    }
-                                } else {
-
-                                    rowCount = stmt.getUpdateCount();
-
-                                    execucao.put("rows_count", rowCount);
-                                    logi.logInfoS("executar() => rowCount: " + rowCount);
+                                    String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
 
                                     double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
                                     execucao.put("tempo_fetch", tempo_fetch);
-                                    execucao.put("tempo_json", 0);
                                     logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+                                    inicio = new Date().getTime();
 
-                                    if (rowCount == -1) {
-                                        hasMoreResult = false;
-                                    }
+                                    JSONObject result = new JSONObject(jsonQuery);
+                                    execucao.put("result", result);
+
+                                    double tempo_json = ((new Date().getTime() - inicio) / 1000.0);
+                                    execucao.put("tempo_json", tempo_json);
+                                    logi.logInfoS("executar() => tempo_json: " + tempo_json);
+
+                                    rowCount = result.getJSONArray("records").length();
+                                    execucao.put("rows_count", rowCount);
+                                    logi.logInfoS("executar() => rowCount: " + rowCount);
 
                                 }
+                            } else {
 
-                                isResultSet = stmt.getMoreResults();
-                                if (rowCount != -1) results.put(execucao);
+                                rowCount = stmt.getUpdateCount();
+
+                                execucao.put("rows_count", rowCount);
+                                logi.logInfoS("executar() => rowCount: " + rowCount);
+
+                                double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
+                                execucao.put("tempo_fetch", tempo_fetch);
+                                execucao.put("tempo_json", 0);
+                                logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+
                             }
+
+                            results.put(execucao);
                         }
                     }
 
