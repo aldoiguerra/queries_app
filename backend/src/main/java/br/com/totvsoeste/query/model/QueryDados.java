@@ -14,6 +14,7 @@ public class QueryDados implements Serializable {
 
     private boolean debug;
     private boolean logi;
+    private boolean autoCommit;
     private String datasource;
     private String consulta;
     private String function;
@@ -74,5 +75,13 @@ public class QueryDados implements Serializable {
 
     public void setLogi(boolean logi) {
         this.logi = logi;
+    }
+
+    public boolean isAutoCommit() {
+        return autoCommit;
+    }
+
+    public void setAutoCommit(boolean autoCommit) {
+        this.autoCommit = autoCommit;
     }
 }

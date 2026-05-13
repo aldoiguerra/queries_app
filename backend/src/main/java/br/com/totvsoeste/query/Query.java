@@ -10,7 +10,13 @@ import org.slf4j.LoggerFactory;
 
 import javax.naming.InitialContext;
 import javax.sql.DataSource;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -160,77 +166,87 @@ public class Query {
             DataSource dataSource = (DataSource) ic.lookup("java:/jdbc/" + dados.getDatasource());
 
             try (Connection conn = dataSource.getConnection()) {
-
-                try (Statement stmt = conn.createStatement()) {
-
+                conn.setAutoCommit(dados.isAutoCommit());
+                try {
                     JSONArray results = new JSONArray();
-
                     String myQuery = dados.getConsulta();
 
-                    inicio = new Date().getTime();
+                    for (String sql : splitSqlStatements(myQuery)) {
+                        if (sql.isBlank()) continue;
 
-                    boolean isResultSet = stmt.execute(myQuery);
+                        try (Statement stmt = conn.createStatement()) {
 
-                    double tempo_execucao = ((new Date().getTime() - inicio) / 1000.0);
-                    retorno.put("tempo_execucao", tempo_execucao);
-                    logi.logInfoS("executar() => tempo_execucao: " + tempo_execucao);
+                            inicio = new Date().getTime();
 
-                    boolean hasMoreResult = true;
+                            boolean isResultSet = stmt.execute(sql);
 
-                    while (hasMoreResult) {
-                        logi.logInfoC("");
+                            double tempo_execucao = ((new Date().getTime() - inicio) / 1000.0);
+                            retorno.put("tempo_execucao", tempo_execucao);
+                            logi.logInfoS("executar() => tempo_execucao: " + tempo_execucao);
 
-                        JSONObject execucao = new JSONObject();
-                        execucao.put("isResultSet", isResultSet);
-                        logi.logInfoS("executar() => isResultSet: " + isResultSet);
+                            boolean hasMoreResult = true;
 
-                        int rowCount = 0;
-                        inicio = new Date().getTime();
-                        if (isResultSet) {
-                            try (ResultSet rs = stmt.getResultSet()) {
+                            while (hasMoreResult) {
+                                logi.logInfoC("");
 
-                                String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
+                                JSONObject execucao = new JSONObject();
+                                execucao.put("isResultSet", isResultSet);
+                                logi.logInfoS("executar() => isResultSet: " + isResultSet);
 
-                                double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
-                                execucao.put("tempo_fetch", tempo_fetch);
-                                logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+                                int rowCount = 0;
                                 inicio = new Date().getTime();
+                                if (isResultSet) {
+                                    try (ResultSet rs = stmt.getResultSet()) {
 
-                                JSONObject result = new JSONObject(jsonQuery);
-                                execucao.put("result", result);
+                                        String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
 
-                                double tempo_json = ((new Date().getTime() - inicio) / 1000.0);
-                                execucao.put("tempo_json", tempo_json);
-                                logi.logInfoS("executar() => tempo_json: " + tempo_json);
+                                        double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
+                                        execucao.put("tempo_fetch", tempo_fetch);
+                                        logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+                                        inicio = new Date().getTime();
 
-                                rowCount = result.getJSONArray("records").length();
-                                execucao.put("rows_count", rowCount);
-                                logi.logInfoS("executar() => rowCount: " + rowCount);
+                                        JSONObject result = new JSONObject(jsonQuery);
+                                        execucao.put("result", result);
 
+                                        double tempo_json = ((new Date().getTime() - inicio) / 1000.0);
+                                        execucao.put("tempo_json", tempo_json);
+                                        logi.logInfoS("executar() => tempo_json: " + tempo_json);
+
+                                        rowCount = result.getJSONArray("records").length();
+                                        execucao.put("rows_count", rowCount);
+                                        logi.logInfoS("executar() => rowCount: " + rowCount);
+
+                                    }
+                                } else {
+
+                                    rowCount = stmt.getUpdateCount();
+
+                                    execucao.put("rows_count", rowCount);
+                                    logi.logInfoS("executar() => rowCount: " + rowCount);
+
+                                    double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
+                                    execucao.put("tempo_fetch", tempo_fetch);
+                                    execucao.put("tempo_json", 0);
+                                    logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+
+                                    if (rowCount == -1) {
+                                        hasMoreResult = false;
+                                    }
+
+                                }
+
+                                isResultSet = stmt.getMoreResults();
+                                if (rowCount != -1) results.put(execucao);
                             }
-                        } else {
-
-                            rowCount = stmt.getUpdateCount();
-
-                            execucao.put("rows_count", rowCount);
-                            logi.logInfoS("executar() => rowCount: " + rowCount);
-
-                            double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
-                            execucao.put("tempo_fetch", tempo_fetch);
-                            execucao.put("tempo_json", 0);
-                            logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
-
-                            if (rowCount == -1) {
-                                hasMoreResult = false;
-                            }
-
                         }
-
-                        isResultSet = stmt.getMoreResults();
-                        if (rowCount != -1) results.put(execucao);
                     }
 
                     retorno.put("results", results);
+
+                    if (!dados.isAutoCommit()) conn.commit();
+                } catch (Exception e) {
+                    if (!dados.isAutoCommit()) conn.rollback();
+                    throw e;
                 }
             }
 
@@ -255,6 +271,139 @@ public class Query {
         return status;
     }
 
+    /**
+     * Quebra um script SQL em statements individuais, separados por ';'.
+     * Respeita:
+     * - strings com aspas simples (incluindo escape de '' dentro da string)
+     * - identificadores entre aspas duplas
+     * - comentários de linha (-- até o fim da linha)
+     * - comentários em bloco (/* ... *&#47;)
+     * <p>
+     * NÃO trata blocos PL/SQL (BEGIN...END;) — para Oracle/procedures envie o bloco
+     * inteiro como um único statement separado.
+     */
+    public static List<String> splitSqlStatements(String script) {
+        List<String> statements = new ArrayList<>();
+        if (script == null || script.isBlank()) {
+            return statements;
+        }
+
+        StringBuilder current = new StringBuilder();
+        int len = script.length();
+        int i = 0;
+
+        boolean inSingleQuote = false;   // dentro de 'texto'
+        boolean inDoubleQuote = false;   // dentro de "identificador"
+        boolean inLineComment = false;   // dentro de -- comentário
+        boolean inBlockComment = false;  // dentro de /* comentário */
+
+        while (i < len) {
+            char c = script.charAt(i);
+            char next = (i + 1 < len) ? script.charAt(i + 1) : '\0';
+
+            // --- Encerramento de comentário de linha ---
+            if (inLineComment) {
+                current.append(c);
+                if (c == '\n' || c == '\r') {
+                    inLineComment = false;
+                }
+                i++;
+                continue;
+            }
+
+            // --- Encerramento de comentário em bloco ---
+            if (inBlockComment) {
+                current.append(c);
+                if (c == '*' && next == '/') {
+                    current.append(next);
+                    inBlockComment = false;
+                    i += 2;
+                    continue;
+                }
+                i++;
+                continue;
+            }
+
+            // --- Dentro de string com aspas simples ---
+            if (inSingleQuote) {
+                current.append(c);
+                if (c == '\'') {
+                    // '' é escape de aspa dentro da string — não fecha
+                    if (next == '\'') {
+                        current.append(next);
+                        i += 2;
+                        continue;
+                    }
+                    inSingleQuote = false;
+                }
+                i++;
+                continue;
+            }
+
+            // --- Dentro de identificador com aspas duplas ---
+            if (inDoubleQuote) {
+                current.append(c);
+                if (c == '"') {
+                    if (next == '"') {              // "" é escape de aspa dupla
+                        current.append(next);
+                        i += 2;
+                        continue;
+                    }
+                    inDoubleQuote = false;
+                }
+                i++;
+                continue;
+            }
+
+            // --- Fora de qualquer contexto especial: detectar inícios ---
+            if (c == '-' && next == '-') {
+                inLineComment = true;
+                current.append(c).append(next);
+                i += 2;
+                continue;
+            }
+            if (c == '/' && next == '*') {
+                inBlockComment = true;
+                current.append(c).append(next);
+                i += 2;
+                continue;
+            }
+            if (c == '\'') {
+                inSingleQuote = true;
+                current.append(c);
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                inDoubleQuote = true;
+                current.append(c);
+                i++;
+                continue;
+            }
+
+            // --- Separador de statement ---
+            if (c == ';') {
+                String stmt = current.toString().trim();
+                if (!stmt.isEmpty()) {
+                    statements.add(stmt);
+                }
+                current.setLength(0);
+                i++;
+                continue;
+            }
+
+            current.append(c);
+            i++;
+        }
+
+        // Último statement (caso o script não termine com ';')
+        String tail = current.toString().trim();
+        if (!tail.isEmpty()) {
+            statements.add(tail);
+        }
+
+        return statements;
+    }
 
 //  public static void main(String[] args) {
 //
