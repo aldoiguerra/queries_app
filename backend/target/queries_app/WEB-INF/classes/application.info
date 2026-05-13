@@ -1,0 +1,16 @@
+application.type=widget
+application.code=queries_app
+application.title=WebService para executar querys
+application.description=WebService para executar querys
+application.fluig.version=null
+application.category=SYSTEM
+application.renderer=freemarker
+developer.code=MacBook-Pro-de-Aldo.local
+developer.name=aldoiguerra
+developer.url=http://www.fluig.com
+application.uiwidget=false
+application.mobileapp=false
+application.version=${build.version}-${build.revision}
+view.file=view.ftl
+edit.file=edit.ftl
+locale.file.base.name=queries_app

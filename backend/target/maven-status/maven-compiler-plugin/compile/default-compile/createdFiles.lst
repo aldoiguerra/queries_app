@@ -1,0 +1,8 @@
+br/com/totvsoeste/query/Conexao.class
+br/com/totvsoeste/query/model/QueryDados.class
+br/com/totvsoeste/query/ScriptingLog.class
+br/com/totvsoeste/query/QueryBuilder.class
+br/com/totvsoeste/query/Query.class
+br/com/totvsoeste/query/QueryRest.class
+br/com/totvsoeste/query/LogIntegracao.class
+br/com/totvsoeste/query/config/ApplicationConfig.class
