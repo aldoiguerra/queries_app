@@ -20,10 +20,12 @@ export async function getDatasources() {
  * @param {string} consulta
  * @returns {{ fields: Array<{name: string}>, records: Array<Array<any>>, infos: object }}
  */
-export async function executeQuery(datasource, consulta) {
+export async function executeQuery(datasource, consulta, debug = false, logi = false) {
   const { data } = await api.post('/queries_app/rest/query/executar', {
     datasource,
     consulta,
+    debug,
+    logi,
   })
   return data
 }

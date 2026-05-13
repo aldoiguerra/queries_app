@@ -16,6 +16,8 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [logSistema, setLogSistema] = useState(false)
+  const [logIntegracao, setLogIntegracao] = useState(false)
 
   const { history, addEntry, removeEntry, clearHistory } = useQueryHistory()
   const { saved, saveQuery, removeQuery, clearSaved } = useSavedQueries()
@@ -45,7 +47,7 @@ function App() {
     }
 
     try {
-      const data = await executeQuery(datasource, sql.trim())
+      const data = await executeQuery(datasource, sql.trim(), logSistema, logIntegracao)
       setResult(data)
       const rowCount = (data.results ?? [])
         .filter((r) => r.isResultSet)
@@ -101,6 +103,14 @@ function App() {
 
         <div className="toolbar-center">
           <DatasourceSelect value={datasource} onChange={setDatasource} />
+          <label className="log-checkbox">
+            <input type="checkbox" checked={logSistema} onChange={e => setLogSistema(e.target.checked)} />
+            Log Sistema
+          </label>
+          <label className="log-checkbox">
+            <input type="checkbox" checked={logIntegracao} onChange={e => setLogIntegracao(e.target.checked)} />
+            Log Integração
+          </label>
         </div>
 
         <div className="toolbar-right">
