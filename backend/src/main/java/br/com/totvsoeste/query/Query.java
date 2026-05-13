@@ -18,234 +18,242 @@ import java.util.stream.IntStream;
 
 public class Query {
 
-  private static final Logger log = LoggerFactory.getLogger(Query.class);
-  private QueryDados dados;
-  private LogIntegracao logi;
-  private JSONObject infos;
-  public JSONObject retorno;
+    private static final Logger log = LoggerFactory.getLogger(Query.class);
+    private QueryDados dados;
+    private LogIntegracao logi;
+    private JSONObject infos;
+    public JSONObject retorno;
 
-  public Query(QueryDados dados, LogIntegracao logi) {
+    public Query(QueryDados dados, LogIntegracao logi) {
 
-    this.dados = dados;
-    this.logi = logi;
-    this.infos = new JSONObject();
+        this.dados = dados;
+        this.logi = logi;
+        this.infos = new JSONObject();
+        this.retorno = new JSONObject();
 
-  }
-
-  public JSONObject consultar(String tipoConsulta) throws Exception {
-
-    JSONObject retorno = new JSONObject();
-
-    logi.logInfoC("Iniciando consultar()...");
-    logi.logInfoS("consultar() => dados.getDataset(): " + dados.getDatasource());
-    logi.logInfoS("consultar() => dados.getConsulta(): " + dados.getConsulta());
-    long inicio = 0;
-    long inicioT = new Date().getTime();
-
-    try {
-
-      InitialContext ic = new InitialContext();
-      DataSource dataSource = (DataSource) ic.lookup("java:/jdbc/" + dados.getDatasource());
-
-      try (Connection conn = dataSource.getConnection()) {
-
-        String consulta = "";
-        if ((dados.getConsulta() != null) && (!dados.getConsulta().equals(""))) {
-          consulta = dados.getConsulta();
-        } else {
-          QueryBuilder builder = new QueryBuilder(dados, logi);
-          consulta = builder.getQuery();
-        }
-
-        if (consulta.trim().equals("")) {
-          throw new Exception("Não foi informada nenhuma query para executar, passe o parametro 'consulta' ou 'function' no json.");
-        }
-
-        inicio = new Date().getTime();
-
-        try (PreparedStatement stmt = conn.prepareStatement(consulta)) {
-
-          try (ResultSet rs = stmt.executeQuery()) {
-
-            double tempo_execute = ((new Date().getTime() - inicio) / 1000.0);
-            infos.put("t1.tempo_execute", tempo_execute);
-            logi.logInfoC("consultar() => tempo execute: " + tempo_execute + " seg");
-            inicio = new Date().getTime();
-
-            if ("dataset".equals(tipoConsulta)) {
-
-              ResultSetMetaData md = rs.getMetaData();
-              int numCols = md.getColumnCount();
-
-              List<String> colNames = IntStream.range(0, numCols).mapToObj(i -> {
-                try {
-                  return md.getColumnLabel(i + 1);
-                } catch (SQLException e) {
-                  e.printStackTrace();
-                  return "?";
-                }
-              }).collect(Collectors.toList());
-
-              double tempo_columns = ((new Date().getTime() - inicio) / 1000.0);
-              infos.put("t2.tempo_columns", tempo_columns);
-              logi.logInfoS("consultar() => tempo columns: " + tempo_columns + " seg");
-              inicio = new Date().getTime();
-
-              List<JSONObject> listaDados = DSL.using(conn).fetch(rs).map((RecordMapper) r -> {
-                JSONObject obj = new JSONObject();
-                colNames.forEach(cn -> obj.put(cn, r.get(cn)));
-                return obj;
-              });
-
-              double tempo_values = ((new Date().getTime() - inicio) / 1000.0);
-              infos.put("t3.tempo_values", tempo_values);
-              logi.logInfoS("consultar() => tempo values: " + tempo_values + " seg");
-
-              logi.logInfoC("consultar() => colNames.size(): " + colNames.size());
-              logi.logInfoS("consultar() => listaDados.size(): " + listaDados.size());
-
-              retorno.put("columns", new JSONArray(colNames));
-              retorno.put("values", new JSONArray(listaDados));
-
-            } else if ("lista".equals(tipoConsulta)) {
-
-              String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
-
-              double tempo_formatJSON = ((new Date().getTime() - inicio) / 1000.0);
-              infos.put("t2.tempo_formatJSON", tempo_formatJSON);
-              logi.logInfoS("consultar() => tempo formatJSON: " + tempo_formatJSON + " seg");
-
-              retorno = new JSONObject(jsonQuery);
-
-              logi.logInfoC("consultar() => fields.length(): " + retorno.getJSONArray("fields").length());
-              logi.logInfoS("consultar() => records.length(): " + retorno.getJSONArray("records").length());
-
-            }
-          }
-
-          double tempo_total = ((new Date().getTime() - inicioT) / 1000.0);
-          infos.put("t4.tempo_total", tempo_total);
-          logi.logInfoC("consultar() => tempo total: " + tempo_total + " seg");
-
-          retorno.put("infos", infos);
-
-        }
-
-      }
-
-    } catch (Exception e) {
-      logi.logErros("ERRO ao efetuar consulta: " + e.getMessage(), e);
-      throw e;
     }
 
-    return retorno;
-  }
+    public JSONObject consultar(String tipoConsulta) throws Exception {
 
-  public void executar() {
+        JSONObject retorno = new JSONObject();
 
-    retorno = new JSONObject();
-    retorno.put("status", false);
+        logi.logInfoC("Iniciando consultar()...");
+        logi.logInfoS("consultar() => dados.getDataset(): " + dados.getDatasource());
+        logi.logInfoS("consultar() => dados.getConsulta(): " + dados.getConsulta());
+        long inicio = 0;
+        long inicioT = new Date().getTime();
 
-    logi.logInfoC("Iniciando executar()...");
-    logi.logInfoS("executar() => dados.getDataset(): " + dados.getDatasource());
-    logi.logInfoS("executar() => dados.getConsulta(): " + dados.getConsulta());
-    long inicio = 0;
+        try {
 
-    long inicioG = new Date().getTime();
+            InitialContext ic = new InitialContext();
+            DataSource dataSource = (DataSource) ic.lookup("java:/jdbc/" + dados.getDatasource());
 
-    try {
+            try (Connection conn = dataSource.getConnection()) {
 
-      InitialContext ic = new InitialContext();
-      DataSource dataSource = (DataSource) ic.lookup("java:/jdbc/" + dados.getDatasource());
+                String consulta = "";
+                if ((dados.getConsulta() != null) && (!dados.getConsulta().equals(""))) {
+                    consulta = dados.getConsulta();
+                } else {
+                    QueryBuilder builder = new QueryBuilder(dados, logi);
+                    consulta = builder.getQuery();
+                }
 
-      try (Connection conn = dataSource.getConnection()) {
+                if (consulta.trim().equals("")) {
+                    throw new Exception("Não foi informada nenhuma query para executar, passe o parametro 'consulta' ou 'function' no json.");
+                }
 
-        try (Statement stmt = conn.createStatement()) {
-
-          JSONArray results = new JSONArray();
-
-          String myQuery = dados.getConsulta();
-
-          inicio = new Date().getTime();
-
-          boolean isResultSet = stmt.execute(myQuery);
-
-          double tempo_execucao = ((new Date().getTime() - inicio) / 1000.0);
-          retorno.put("tempo_execucao", tempo_execucao);
-          logi.logInfoS("executar() => tempo_execucao: " + tempo_execucao);
-
-          boolean hasMoreResult = true;
-
-          while (hasMoreResult) {
-            logi.logInfoC("");
-
-            JSONObject execucao = new JSONObject();
-            execucao.put("isResultSet", isResultSet);
-            logi.logInfoS("executar() => isResultSet: " + isResultSet);
-
-            int rowCount = 0;
-            inicio = new Date().getTime();
-            if (isResultSet) {
-              try (ResultSet rs = stmt.getResultSet()) {
-
-                String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
-
-                double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
-                execucao.put("tempo_fetch", tempo_fetch);
-                logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
                 inicio = new Date().getTime();
 
-                JSONObject result = new JSONObject(jsonQuery);
-                execucao.put("result", result);
+                try (PreparedStatement stmt = conn.prepareStatement(consulta)) {
 
-                double tempo_json = ((new Date().getTime() - inicio) / 1000.0);
-                execucao.put("tempo_json", tempo_json);
-                logi.logInfoS("executar() => tempo_json: " + tempo_json);
+                    try (ResultSet rs = stmt.executeQuery()) {
 
-                rowCount = result.getJSONArray("records").length();
-                execucao.put("rows_count", rowCount);
-                logi.logInfoS("executar() => rowCount: " + rowCount);
+                        double tempo_execute = ((new Date().getTime() - inicio) / 1000.0);
+                        infos.put("t1.tempo_execute", tempo_execute);
+                        logi.logInfoC("consultar() => tempo execute: " + tempo_execute + " seg");
+                        inicio = new Date().getTime();
 
-              }
-            } else {
+                        if ("dataset".equals(tipoConsulta)) {
 
-              rowCount = stmt.getUpdateCount();
+                            ResultSetMetaData md = rs.getMetaData();
+                            int numCols = md.getColumnCount();
 
-              execucao.put("rows_count", rowCount);
-              logi.logInfoS("executar() => rowCount: " + rowCount);
+                            List<String> colNames = IntStream.range(0, numCols).mapToObj(i -> {
+                                try {
+                                    return md.getColumnLabel(i + 1);
+                                } catch (SQLException e) {
+                                    e.printStackTrace();
+                                    return "?";
+                                }
+                            }).collect(Collectors.toList());
 
-              double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
-              execucao.put("tempo_fetch", tempo_fetch);
-              execucao.put("tempo_json", 0);
-              logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+                            double tempo_columns = ((new Date().getTime() - inicio) / 1000.0);
+                            infos.put("t2.tempo_columns", tempo_columns);
+                            logi.logInfoS("consultar() => tempo columns: " + tempo_columns + " seg");
+                            inicio = new Date().getTime();
 
-              if (rowCount == -1) {
-                hasMoreResult = false;
-              }
+                            List<JSONObject> listaDados = DSL.using(conn).fetch(rs).map((RecordMapper) r -> {
+                                JSONObject obj = new JSONObject();
+                                colNames.forEach(cn -> obj.put(cn, r.get(cn)));
+                                return obj;
+                            });
+
+                            double tempo_values = ((new Date().getTime() - inicio) / 1000.0);
+                            infos.put("t3.tempo_values", tempo_values);
+                            logi.logInfoS("consultar() => tempo values: " + tempo_values + " seg");
+
+                            logi.logInfoC("consultar() => colNames.size(): " + colNames.size());
+                            logi.logInfoS("consultar() => listaDados.size(): " + listaDados.size());
+
+                            retorno.put("columns", new JSONArray(colNames));
+                            retorno.put("values", new JSONArray(listaDados));
+
+                        } else if ("lista".equals(tipoConsulta)) {
+
+                            String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
+
+                            double tempo_formatJSON = ((new Date().getTime() - inicio) / 1000.0);
+                            infos.put("t2.tempo_formatJSON", tempo_formatJSON);
+                            logi.logInfoS("consultar() => tempo formatJSON: " + tempo_formatJSON + " seg");
+
+                            retorno = new JSONObject(jsonQuery);
+
+                            logi.logInfoC("consultar() => fields.length(): " + retorno.getJSONArray("fields").length());
+                            logi.logInfoS("consultar() => records.length(): " + retorno.getJSONArray("records").length());
+
+                        }
+                    }
+
+                    double tempo_total = ((new Date().getTime() - inicioT) / 1000.0);
+                    infos.put("t4.tempo_total", tempo_total);
+                    logi.logInfoC("consultar() => tempo total: " + tempo_total + " seg");
+
+                    retorno.put("infos", infos);
+
+                }
 
             }
 
-            isResultSet = stmt.getMoreResults();
-            if (rowCount != -1) results.put(execucao);
-          }
-
-          retorno.put("results", results);
+        } catch (Exception e) {
+            logi.logErros("ERRO ao efetuar consulta: " + e.getMessage(), e);
+            throw e;
         }
-      }
 
-      retorno.put("status", true);
-
-    } catch (Exception e) {
-
-      retorno.put("status", false);
-      retorno.put("erro", e.getMessage());
-
+        return retorno;
     }
 
-    double tempo_total = ((new Date().getTime() - inicioG) / 1000.0);
-    retorno.put("tempo_total", tempo_total);
+    public boolean executar() {
 
-  }
+        boolean status = false;
+        retorno.put("status", status);
+
+        logi.logInfoC("Iniciando executar()...");
+        logi.logInfoS("executar() => dados.getDataset(): " + dados.getDatasource());
+        logi.logInfoS("executar() => dados.getConsulta(): " + dados.getConsulta());
+        long inicio = 0;
+
+        long inicioG = new Date().getTime();
+
+        try {
+
+            InitialContext ic = new InitialContext();
+            DataSource dataSource = (DataSource) ic.lookup("java:/jdbc/" + dados.getDatasource());
+
+            try (Connection conn = dataSource.getConnection()) {
+
+                try (Statement stmt = conn.createStatement()) {
+
+                    JSONArray results = new JSONArray();
+
+                    String myQuery = dados.getConsulta();
+
+                    inicio = new Date().getTime();
+
+                    boolean isResultSet = stmt.execute(myQuery);
+
+                    double tempo_execucao = ((new Date().getTime() - inicio) / 1000.0);
+                    retorno.put("tempo_execucao", tempo_execucao);
+                    logi.logInfoS("executar() => tempo_execucao: " + tempo_execucao);
+
+                    boolean hasMoreResult = true;
+
+                    while (hasMoreResult) {
+                        logi.logInfoC("");
+
+                        JSONObject execucao = new JSONObject();
+                        execucao.put("isResultSet", isResultSet);
+                        logi.logInfoS("executar() => isResultSet: " + isResultSet);
+
+                        int rowCount = 0;
+                        inicio = new Date().getTime();
+                        if (isResultSet) {
+                            try (ResultSet rs = stmt.getResultSet()) {
+
+                                String jsonQuery = DSL.using(conn).fetch(rs).formatJSON();
+
+                                double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
+                                execucao.put("tempo_fetch", tempo_fetch);
+                                logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+                                inicio = new Date().getTime();
+
+                                JSONObject result = new JSONObject(jsonQuery);
+                                execucao.put("result", result);
+
+                                double tempo_json = ((new Date().getTime() - inicio) / 1000.0);
+                                execucao.put("tempo_json", tempo_json);
+                                logi.logInfoS("executar() => tempo_json: " + tempo_json);
+
+                                rowCount = result.getJSONArray("records").length();
+                                execucao.put("rows_count", rowCount);
+                                logi.logInfoS("executar() => rowCount: " + rowCount);
+
+                            }
+                        } else {
+
+                            rowCount = stmt.getUpdateCount();
+
+                            execucao.put("rows_count", rowCount);
+                            logi.logInfoS("executar() => rowCount: " + rowCount);
+
+                            double tempo_fetch = ((new Date().getTime() - inicio) / 1000.0);
+                            execucao.put("tempo_fetch", tempo_fetch);
+                            execucao.put("tempo_json", 0);
+                            logi.logInfoS("executar() => tempo_fetch: " + tempo_fetch);
+
+                            if (rowCount == -1) {
+                                hasMoreResult = false;
+                            }
+
+                        }
+
+                        isResultSet = stmt.getMoreResults();
+                        if (rowCount != -1) results.put(execucao);
+                    }
+
+                    retorno.put("results", results);
+                }
+            }
+
+            status = true;
+            retorno.put("status", status);
+
+        } catch (Exception e) {
+
+            status = false;
+            retorno.put("status", status);
+            retorno.put("erro", e.getMessage());
+
+            logi.logErros(e.getMessage(), e);
+
+        } finally {
+
+            double tempo_total = ((new Date().getTime() - inicioG) / 1000.0);
+            retorno.put("tempo_total", tempo_total);
+
+        }
+
+        return status;
+    }
 
 
 //  public static void main(String[] args) {

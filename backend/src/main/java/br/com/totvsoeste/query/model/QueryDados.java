@@ -13,6 +13,7 @@ public class QueryDados implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(QueryDados.class);
 
     private boolean debug;
+    private boolean logi;
     private String datasource;
     private String consulta;
     private String function;
@@ -65,5 +66,13 @@ public class QueryDados implements Serializable {
 
     public void setDados(Map<String, Object> dados) {
         this.dados = dados;
+    }
+
+    public boolean isLogi() {
+        return logi;
+    }
+
+    public void setLogi(boolean logi) {
+        this.logi = logi;
     }
 }

@@ -53,13 +53,14 @@ public class LogIntegracao {
 
         Conexao conApp = null;
         try {
+            String data = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
 
             mensagem = mensagem.replaceAll("'", "");
 
             String queryInsert = "INSERT INTO TOE_LOG_INTEGRACAO " +
                     "(PROCESSO, DOCUMENTO, VERSAO, LOCAL, STATUS, MENSAGEM, EXECUCAO_INICIO, EXECUCAO_FIM) " +
                     "VALUES " +
-                    "('', '', '', 'queries_app', '" + status + "', '" + mensagem + "', NOW(), NOW()) ";
+                    "('', '', '', 'queries_app', '" + status + "', '" + mensagem + "', '" + data + "', '" + data + "') ";
 
             conApp = new Conexao("AppDS");
             Connection conn = conApp.getConnection();
